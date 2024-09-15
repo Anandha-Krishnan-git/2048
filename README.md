@@ -37,4 +37,4 @@ The **2048 Game** is a sliding tile puzzle game where the objective is to combin
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/anandha-krishnan-git/2048game.git
+   git clone https://github.com/Anandha-krishnan-git/2048game.git
