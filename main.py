@@ -1,138 +1,207 @@
-import tkinter as tk
-from tkinter import messagebox
-import logic  # Assuming logic.py is in the same directory
+import pygame
+import sys
+import time
+from logic import Game2048
+from ai import AI2048
 
-class Game2048:
-    def __init__(self, master):
-        self.master = master
-        self.master.title("2048 Game")
-        self.grid_color = "#bbada0"
-        self.empty_color = "#cdc1b4"
-        self.tile_colors = {
-            2: "#eee4da", 4: "#ede0c8", 8: "#f2b179", 16: "#f59563",
-            32: "#f67c5f", 64: "#f65e3b", 128: "#edcf72", 256: "#edcc61",
-            512: "#edc850", 1024: "#edc53f", 2048: "#edc22e"
-        }
-        self.tile_font = ("Helvetica", 40, "bold")
-        self.score_font = ("Helvetica", 20, "bold")
+# Initialize Pygame
+pygame.init()
 
-        # Initialize game with the home screen
-        self.home_screen()
+# Constants
+WIDTH, HEIGHT = 400, 500
+GRID_SIZE = 4
+CELL_SIZE = WIDTH // GRID_SIZE
+FONT = pygame.font.Font(None, 36)
+SMALL_FONT = pygame.font.Font(None, 24)
 
-    def home_screen(self):
-        """Display the home screen with Play and Exit buttons."""
-        self.clear_screen()
+# Colors
+BACKGROUND_COLOR = (187, 173, 160)
+EMPTY_CELL_COLOR = (205, 193, 180)
+TILE_COLORS = {
+    2: (238, 228, 218),
+    4: (237, 224, 200),
+    8: (242, 177, 121),
+    16: (245, 149, 99),
+    32: (246, 124, 95),
+    64: (246, 94, 59),
+    128: (237, 207, 114),
+    256: (237, 204, 97),
+    512: (237, 200, 80),
+    1024: (237, 197, 63),
+    2048: (237, 194, 46)
+}
 
-        self.home_frame = tk.Frame(self.master, bg=self.grid_color, bd=3, width=400, height=400)
-        self.home_frame.grid(padx=10, pady=10)
+# Set up the display
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("2048 Game")
 
-        tk.Label(self.home_frame, text="Welcome to 2048!", font=("Helvetica", 30, "bold"), bg=self.grid_color, fg="white").pack(pady=20)
+def draw_tile(value, x, y, size):
+    pygame.draw.rect(screen, TILE_COLORS.get(value, (237, 194, 46)), (x, y, size, size))
+    if value:
+        font_size = 36 if value < 100 else 24 if value < 1000 else 18
+        font = pygame.font.Font(None, font_size)
+        text = font.render(str(value), True, (0, 0, 0))
+        text_rect = text.get_rect(center=(x + size // 2, y + size // 2))
+        screen.blit(text, text_rect)
 
-        play_button = tk.Button(self.home_frame, text="Play Game", font=("Helvetica", 20), command=self.start_game, width=10, height=2, bg="#8f7a66", fg="white")
-        play_button.pack(pady=20)
+def draw_game(game, animations):
+    screen.fill(BACKGROUND_COLOR)
+    for i in range(GRID_SIZE):
+        for j in range(GRID_SIZE):
+            x = j * CELL_SIZE
+            y = i * CELL_SIZE
+            pygame.draw.rect(screen, EMPTY_CELL_COLOR, (x, y, CELL_SIZE, CELL_SIZE))
+    
+    for (i, j), (value, progress) in animations.items():
+        x = j * CELL_SIZE
+        y = i * CELL_SIZE
+        size = int(CELL_SIZE * progress)
+        draw_tile(value, x + (CELL_SIZE - size) // 2, y + (CELL_SIZE - size) // 2, size)
+    
+    for i in range(GRID_SIZE):
+        for j in range(GRID_SIZE):
+            value = game.grid[i][j]
+            if value and (i, j) not in animations:
+                x = j * CELL_SIZE
+                y = i * CELL_SIZE
+                draw_tile(value, x, y, CELL_SIZE)
+    
+    score_text = FONT.render(f"Score: {game.score}", True, (0, 0, 0))
+    screen.blit(score_text, (10, HEIGHT - 40))
+    
+    pygame.display.flip()
 
-        exit_button = tk.Button(self.home_frame, text="Exit", font=("Helvetica", 20), command=self.master.quit, width=10, height=2, bg="#8f7a66", fg="white")
-        exit_button.pack(pady=20)
+def animate(animations):
+    start_time = time.time()
+    while animations:
+        current_time = time.time()
+        for key, (value, progress) in list(animations.items()):
+            progress = min((current_time - start_time) * 5, 1.0)
+            animations[key] = (value, progress)
+            if progress == 1.0:
+                del animations[key]
+        draw_game(game, animations)
+        pygame.time.wait(20)
 
-    def start_game(self):
-        """Start the 2048 game and display the game grid."""
-        self.clear_screen()
-
-        # Recreate the grid frame after clearing the screen
-        self.grid_frame = tk.Frame(self.master, bg=self.grid_color, bd=3, width=400, height=400)
-        self.grid_frame.grid(padx=10, pady=10)
-
-        # Initialize the game matrix
-        self.game_matrix = logic.start_game()
-        self.cells = []
-
-        # Create the grid of cells (4x4 grid)
-        for i in range(4):
-            row = []
-            for j in range(4):
-                cell = tk.Label(self.grid_frame, text="", bg=self.empty_color, width=4, height=2, font=self.tile_font)
-                cell.grid(row=i, column=j, padx=5, pady=5)
-                row.append(cell)
-            self.cells.append(row)
-
-        # Update the grid with the initial state
-        self.update_grid()
-
-        # Bind the arrow keys to the corresponding game moves
-        self.master.bind("<Up>", self.move_up)
-        self.master.bind("<Down>", self.move_down)
-        self.master.bind("<Left>", self.move_left)
-        self.master.bind("<Right>", self.move_right)
-        #wasd keys
-        self.master.bind("<w>", self.move_up)
-        self.master.bind("<s>", self.move_down)
-        self.master.bind("<a>", self.move_left)
-        self.master.bind("<d>", self.move_right)
+def main_menu():
+    while True:
+        screen.fill(BACKGROUND_COLOR)
+        title = FONT.render("2048", True, (0, 0, 0))
+        play_button = FONT.render("Play", True, (0, 0, 0))
+        ai_play_button = FONT.render("AI Play", True, (0, 0, 0))
+        exit_button = FONT.render("Exit", True, (0, 0, 0))
         
-    def clear_screen(self):
-        """Clear any existing widgets on the screen."""
-        for widget in self.master.winfo_children():
-            widget.destroy()
+        screen.blit(title, (WIDTH // 2 - title.get_width() // 2, 100))
+        screen.blit(play_button, (WIDTH // 2 - play_button.get_width() // 2, 200))
+        screen.blit(ai_play_button, (WIDTH // 2 - ai_play_button.get_width() // 2, 250))
+        screen.blit(exit_button, (WIDTH // 2 - exit_button.get_width() // 2, 300))
+        
+        pygame.display.flip()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "exit"
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                if WIDTH // 2 - play_button.get_width() // 2 <= mouse_pos[0] <= WIDTH // 2 + play_button.get_width() // 2:
+                    if 200 <= mouse_pos[1] <= 200 + play_button.get_height():
+                        return "play"
+                    elif 250 <= mouse_pos[1] <= 250 + ai_play_button.get_height():
+                        return "ai_play"
+                    elif 300 <= mouse_pos[1] <= 300 + exit_button.get_height():
+                        return "exit"
 
-    def update_grid(self):
-        """Update the visual grid based on the game matrix."""
-        for i in range(4):
-            for j in range(4):
-                value = self.game_matrix[i][j]
-                if value == 0:
-                    self.cells[i][j].config(text="", bg=self.empty_color)
-                else:
-                    self.cells[i][j].config(text=str(value), bg=self.tile_colors.get(value, "#ff0000"))
+def game_over_menu(score):
+    while True:
+        screen.fill(BACKGROUND_COLOR)
+        game_over_text = FONT.render("Game Over!", True, (0, 0, 0))
+        score_text = FONT.render(f"Score: {score}", True, (0, 0, 0))
+        play_again_button = FONT.render("Play Again", True, (0, 0, 0))
+        ai_play_button = FONT.render("AI Play", True, (0, 0, 0))
+        exit_button = FONT.render("Exit", True, (0, 0, 0))
+        
+        screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, 100))
+        screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, 150))
+        screen.blit(play_again_button, (WIDTH // 2 - play_again_button.get_width() // 2, 200))
+        screen.blit(ai_play_button, (WIDTH // 2 - ai_play_button.get_width() // 2, 250))
+        screen.blit(exit_button, (WIDTH // 2 - exit_button.get_width() // 2, 300))
+        
+        pygame.display.flip()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "exit"
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                if WIDTH // 2 - play_again_button.get_width() // 2 <= mouse_pos[0] <= WIDTH // 2 + play_again_button.get_width() // 2:
+                    if 200 <= mouse_pos[1] <= 200 + play_again_button.get_height():
+                        return "play"
+                    elif 250 <= mouse_pos[1] <= 250 + ai_play_button.get_height():
+                        return "ai_play"
+                    elif 300 <= mouse_pos[1] <= 300 + exit_button.get_height():
+                        return "exit"
 
-    def move_up(self, event):
-        self.game_matrix, changed = logic.move_up(self.game_matrix)
-        self.perform_game_action(changed)
-
-    def move_down(self, event):
-        self.game_matrix, changed = logic.move_down(self.game_matrix)
-        self.perform_game_action(changed)
-
-    def move_left(self, event):
-        self.game_matrix, changed = logic.move_left(self.game_matrix)
-        self.perform_game_action(changed)
-
-    def move_right(self, event):
-        self.game_matrix, changed = logic.move_right(self.game_matrix)
-        self.perform_game_action(changed)
-
-    def perform_game_action(self, changed):
-        """Perform the game action if the board has changed, check for game status."""
-        if changed:
-            logic.add_new_2(self.game_matrix)
-            self.update_grid()
-            state = logic.get_current_state(self.game_matrix)
-            if state == 'WON':
-                self.show_game_over("Congratulations!", "You won!")
-            elif state == 'LOST':
-                self.show_game_over("Game Over", "You lost!")
-
-    def show_game_over(self, title, message):
-        """Display a modern game over message."""
-        game_over_window = tk.Toplevel(self.master)
-        game_over_window.title(title)
-        game_over_window.geometry("300x200")
-        game_over_window.configure(bg="#faf8ef")
-
-        tk.Label(game_over_window, text=title, font=("Helvetica", 24, "bold"), bg="#faf8ef").pack(pady=20)
-        tk.Label(game_over_window, text=message, font=("Helvetica", 16), bg="#faf8ef").pack(pady=10)
-
-        play_again_button = tk.Button(game_over_window, text="Play Again", font=("Helvetica", 14), command=lambda: [game_over_window.destroy(), self.start_game()])
-        play_again_button.pack(pady=10)
-
-        exit_button = tk.Button(game_over_window, text="Exit", font=("Helvetica", 14), command=self.master.quit)
-        exit_button.pack(pady=10)
-
-        game_over_window.transient(self.master)
-        game_over_window.grab_set()
-        game_over_window.wait_window()
+def main():
+    global game  
+    
+    while True:
+        choice = main_menu()
+        if choice == "exit":
+            pygame.quit()
+            sys.exit()
+        
+        game = Game2048()
+        ai = AI2048()
+        clock = pygame.time.Clock()
+        ai_mode = choice == "ai_play"
+        
+        animations = {}
+        
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.KEYDOWN and not ai_mode:
+                    if event.key == pygame.K_UP:
+                        moved, merged = game.move(0)
+                    elif event.key == pygame.K_RIGHT:
+                        moved, merged = game.move(1)
+                    elif event.key == pygame.K_DOWN:
+                        moved, merged = game.move(2)
+                    elif event.key == pygame.K_LEFT:
+                        moved, merged = game.move(3)
+                    else:
+                        moved, merged = False, []
+                    
+                    if moved:
+                        animations.update({pos: (game.grid[pos[0]][pos[1]], 0) for pos in merged})
+                        animations[game.last_new_tile] = (game.grid[game.last_new_tile[0]][game.last_new_tile[1]], 0)
+            
+            if ai_mode:
+                move = ai.get_best_move(game)
+                moved, merged = game.move(move)
+                if moved:
+                    animations.update({pos: (game.grid[pos[0]][pos[1]], 0) for pos in merged})
+                    animations[game.last_new_tile] = (game.grid[game.last_new_tile[0]][game.last_new_tile[1]], 0)
+            
+            if animations:
+                animate(animations)
+            else:
+                draw_game(game, animations)
+            
+            if game.is_game_over():
+                choice = game_over_menu(game.score)
+                if choice == "exit":
+                    pygame.quit()
+                    sys.exit()
+                elif choice == "play":
+                    break  # Break the inner loop to start a new game
+                elif choice == "ai_play":
+                    ai_mode = True
+                    game = Game2048()
+            
+            clock.tick(60)  # Limit to 60 FPS
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    game = Game2048(root)
-    root.mainloop()
-
+    main()
