@@ -18,8 +18,4 @@ The heuristic function is based on:
 - The number of **empty (void) tiles**.
 - The **arrangement** of tiles** (whether the larger tiles are grouped well).
 
-## How to Run:
-You can clone the project from the GitHub repository:
 
-```bash
-git clone https://github.com/Anandha-krishnan-git/2048game.git
