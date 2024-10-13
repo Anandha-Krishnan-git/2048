@@ -3,11 +3,8 @@ import sys
 import time
 from logic import Game2048
 from ai import AI2048
-
-# Initialize Pygame
 pygame.init()
 
-# Constants
 WIDTH, HEIGHT = 400, 500
 GRID_SIZE = 4
 CELL_SIZE = WIDTH // GRID_SIZE
@@ -31,6 +28,9 @@ TILE_COLORS = {
     2048: (237, 194, 46)
 }
 
+# Add this new constant for the button
+STOP_BUTTON_COLOR = (200, 0, 0)
+
 # Set up the display
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("2048 Game")
@@ -43,6 +43,17 @@ def draw_tile(value, x, y, size):
         text = font.render(str(value), True, (0, 0, 0))
         text_rect = text.get_rect(center=(x + size // 2, y + size // 2))
         screen.blit(text, text_rect)
+
+def draw_stop_button():
+    button_width = 80
+    button_height = 30
+    button_x = WIDTH - button_width - 10
+    button_y = HEIGHT - button_height - 10
+    pygame.draw.rect(screen, STOP_BUTTON_COLOR, (button_x, button_y, button_width, button_height))
+    stop_text = SMALL_FONT.render("STOP", True, (255, 255, 255))
+    text_rect = stop_text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
+    screen.blit(stop_text, text_rect)
+    return pygame.Rect(button_x, button_y, button_width, button_height)
 
 def draw_game(game, animations):
     screen.fill(BACKGROUND_COLOR)
@@ -69,13 +80,19 @@ def draw_game(game, animations):
     score_text = FONT.render(f"Score: {game.score}", True, (0, 0, 0))
     screen.blit(score_text, (10, HEIGHT - 40))
     
+    stop_button_rect = draw_stop_button()
+    
     pygame.display.flip()
+    return stop_button_rect
 
 def animate(animations):
     start_time = time.time()
     while animations:
         current_time = time.time()
         for key, (value, progress) in list(animations.items()):
+            if value==0:
+                del animations[key]
+                continue
             progress = min((current_time - start_time) * 5, 1.0)
             animations[key] = (value, progress)
             if progress == 1.0:
@@ -84,6 +101,7 @@ def animate(animations):
         pygame.time.wait(20)
 
 def main_menu():
+    clock = pygame.time.Clock()
     while True:
         screen.fill(BACKGROUND_COLOR)
         title = FONT.render("2048", True, (0, 0, 0))
@@ -110,8 +128,11 @@ def main_menu():
                         return "ai_play"
                     elif 300 <= mouse_pos[1] <= 300 + exit_button.get_height():
                         return "exit"
+        
+        clock.tick(60)  # Limit the frame rate to 60 FPS
 
 def game_over_menu(score):
+    clock = pygame.time.Clock()
     while True:
         screen.fill(BACKGROUND_COLOR)
         game_over_text = FONT.render("Game Over!", True, (0, 0, 0))
@@ -140,11 +161,13 @@ def game_over_menu(score):
                         return "ai_play"
                     elif 300 <= mouse_pos[1] <= 300 + exit_button.get_height():
                         return "exit"
+        
+        clock.tick(60)  
 
 def main():
-    global game  
+    global game  # Make game a global variable so it can be accessed in draw_game
     
-    while True:
+    while True:  # Outer loop for the entire game
         choice = main_menu()
         if choice == "exit":
             pygame.quit()
@@ -157,11 +180,18 @@ def main():
         
         animations = {}
         
-        while True:
+        game_running = True
+        while game_running:  # Inner loop for each game session
+            stop_button_rect = draw_game(game, animations)
+            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if stop_button_rect.collidepoint(event.pos):
+                        game_running = False  # Break the inner loop to return to main menu
+                        break
                 elif event.type == pygame.KEYDOWN and not ai_mode:
                     if event.key == pygame.K_UP:
                         moved, merged = game.move(0)
@@ -178,7 +208,7 @@ def main():
                         animations.update({pos: (game.grid[pos[0]][pos[1]], 0) for pos in merged})
                         animations[game.last_new_tile] = (game.grid[game.last_new_tile[0]][game.last_new_tile[1]], 0)
             
-            if ai_mode:
+            if ai_mode and game_running:
                 move = ai.get_best_move(game)
                 moved, merged = game.move(move)
                 if moved:
@@ -187,10 +217,8 @@ def main():
             
             if animations:
                 animate(animations)
-            else:
-                draw_game(game, animations)
             
-            if game.is_game_over():
+            if game.is_game_over() and game_running:
                 choice = game_over_menu(game.score)
                 if choice == "exit":
                     pygame.quit()
