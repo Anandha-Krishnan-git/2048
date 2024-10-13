@@ -11,7 +11,7 @@ This project applies AI to the **2048 game** using **Pygame**. The game is imple
 - **Expectimax Algorithm**: This algorithm is particularly well-suited for handling randomness, such as the unpredictability in spawning new tiles in the 2048 game. Expectimax is used to predict the potential outcomes of future moves and make decisions accordingly.
 
 ## Player Prediction Feature:
-To add an AI element to the **Human Mode**, a heuristic function is included to predict the **maximum score** a player might achieve until the game ends (losing is more likely than winning for an average player). This prediction is calculated after the player's first 10 moves.
+To add an AI element to the **Human Mode**, a heuristic function is included to predict the **maximum score** a player might achieve until the game ends (losing is more likely than winning for an average player). This prediction is calculated after the player's first n number of moves.
 
 The heuristic function is based on:
 - The **largest tile** on the board.
